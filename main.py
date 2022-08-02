@@ -44,7 +44,7 @@ def detect(image):
     binary_image = convert_to_bin(image)
     try:
         conn = http.client.HTTPSConnection('api.projectoxford.ai')
-        conn.request("POST", "/face/v1.0/detect?%s" % params, binary_image, headers)
+        conn.request("POST", f"/face/v1.0/detect?{params}", binary_image, headers)
         response = conn.getresponse()
         data = response.read().decode('utf-8')
         data = json.loads(data)
@@ -70,10 +70,8 @@ def identify(image):
         data = response.read().decode('utf-8')
         data = json.loads(data)
 
-        #Code for tracking counter from a local file
-        f = open("counter.txt", "r")
-        counter = int(f.read())
-        f.close()
+        with open("counter.txt", "r") as f:
+            counter = int(f.read())
         arrNames = []
         for key in data:
             if key == 'error':
@@ -88,8 +86,13 @@ def identify(image):
                 streamer.log("People at home :house:", counter)
             else:
                 pId = key['candidates'][0]['personId']
-                conn.request("GET", "/face/v1.0/persongroups/contacts/persons/{}?".format(pId), "{null}",
-                             jsonHeaders)
+                conn.request(
+                    "GET",
+                    f"/face/v1.0/persongroups/contacts/persons/{pId}?",
+                    "{null}",
+                    jsonHeaders,
+                )
+
                 response = conn.getresponse()
                 data = response.read().decode('utf-8')
                 data = json.loads(data)
@@ -108,15 +111,19 @@ def identify(image):
                 counter = counter + 1
                 streamer.log("People at home :house:", counter)
         if len(arrNames) == 1:
-            conn.request("POST", "/face/v1.0/persongroups/contacts/persons/{}/persistedFaces?".format(pId),
-                         convert_to_bin(image), headers)
+            conn.request(
+                "POST",
+                f"/face/v1.0/persongroups/contacts/persons/{pId}/persistedFaces?",
+                convert_to_bin(image),
+                headers,
+            )
+
             train()
-        if len(arrNames) > 0:
+        if arrNames:
             welcome(arrNames)
         conn.close()
-        f2 = open("counter.txt", "w")
-        f2.write(str(counter))
-        f2.close()
+        with open("counter.txt", "w") as f2:
+            f2.write(str(counter))
         streamer.close()
     except Exception as e:
         print(e)
@@ -135,8 +142,13 @@ def create_person(name, image):
         data = json.loads(data)
         pId = data['personId']
         print(pId)
-        conn.request("POST", "/face/v1.0/persongroups/contacts/persons/{}/persistedFaces?".format(pId),
-                     convert_to_bin(image), headers)
+        conn.request(
+            "POST",
+            f"/face/v1.0/persongroups/contacts/persons/{pId}/persistedFaces?",
+            convert_to_bin(image),
+            headers,
+        )
+
         response = conn.getresponse()
         data = response.read()
         print(data)
@@ -160,8 +172,13 @@ def add_face(name, image):
             print(person['name'])
             if person['name'] == name:
                 pId = person['personId']
-        conn.request("POST", "/face/v1.0/persongroups/contacts/persons/{}/persistedFaces?".format(pId),
-                     convert_to_bin(image), headers)
+        conn.request(
+            "POST",
+            f"/face/v1.0/persongroups/contacts/persons/{pId}/persistedFaces?",
+            convert_to_bin(image),
+            headers,
+        )
+
         response = conn.getresponse()
         data = response.read()
         print(data)
@@ -203,12 +220,14 @@ def upload(image):
 
 def welcome(arrNames):
     if len(arrNames) == 1:
-        msg = "Hi {}, I am Alexa. Have a seat. What music can I play for you?".format(arrNames[0])
+        msg = f"Hi {arrNames[0]}, I am Alexa. Have a seat. What music can I play for you?"
+
     else:
         msg = "Hi "
         for i in range(len(arrNames) - 1):
             msg = msg + arrNames[i] + ', '
-        msg = msg + 'and' + arrNames[len(arrNames) - 1] + ', I am Alexa. Have a seat. What music would you like?'
+        msg = f'{msg}and{arrNames[len(arrNames) - 1]}, I am Alexa. Have a seat. What music would you like?'
+
     params = ""
     # AccessTokenUri = "https://api.cognitive.microsoft.com/sts/v1.0/issueToken";
     AccessTokenHost = "api.cognitive.microsoft.com"
@@ -225,16 +244,20 @@ def welcome(arrNames):
     conn.close()
 
     accesstoken = data.decode("UTF-8")
-    print("Access Token: " + accesstoken)
+    print(f"Access Token: {accesstoken}")
 
-    body = "<speak version='1.0' xml:lang='en-us'><voice xml:lang='en-us' xml:gender='Female' name='Microsoft Server Speech Text to Speech Voice (en-US, ZiraRUS)'>{}</voice></speak>".format(msg)
+    body = f"<speak version='1.0' xml:lang='en-us'><voice xml:lang='en-us' xml:gender='Female' name='Microsoft Server Speech Text to Speech Voice (en-US, ZiraRUS)'>{msg}</voice></speak>"
 
-    header = {"Content-type": "audio/wav; samplerate = 8000",
-               "X-Microsoft-OutputFormat": "riff-8khz-8bit-mono-mulaw",
-               "Authorization": "Bearer " + accesstoken,
-               "X-Search-AppId": "07D3234E49CE426DAA29772419F436CA",
-               "X-Search-ClientID": "1ECFAE91408841A480F00935DC390960",
-               "User-Agent": "TTSForPython"}
+
+    header = {
+        "Content-type": "audio/wav; samplerate = 8000",
+        "X-Microsoft-OutputFormat": "riff-8khz-8bit-mono-mulaw",
+        "Authorization": f"Bearer {accesstoken}",
+        "X-Search-AppId": "07D3234E49CE426DAA29772419F436CA",
+        "X-Search-ClientID": "1ECFAE91408841A480F00935DC390960",
+        "User-Agent": "TTSForPython",
+    }
+
 
     # Connect to server to synthesize the wave
     print("\nConnect to server to synthesize the wave")
@@ -244,9 +267,8 @@ def welcome(arrNames):
     print(response.status, response.reason)
     print(type(response))
     data = response.read()
-    f = open('sample', 'wb')
-    f.write(data)
-    f.close()
+    with open('sample', 'wb') as f:
+        f.write(data)
     subprocess.call("gst-launch-1.0 filesrc location= /home/root/vandy/Holmes/sample ! wavparse ! pulsesink",shell=True);
 
 
